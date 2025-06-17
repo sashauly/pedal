@@ -33,7 +33,6 @@ const mockData = {
 
 function App() {
   const { currentLocation, routePoints, isTracking } = mockData;
-  console.log(currentLocation);
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
