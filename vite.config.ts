@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-const BASE_PATH = process.env.PAGES_BASE_PATH ?? "/cycle-tracker";
+const BASE_PATH = process.env.PAGES_BASE_PATH ?? "/pedal";
 
 const isProd = process.env.NODE_ENV === "production";
 
