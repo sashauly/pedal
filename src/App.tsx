@@ -4,6 +4,8 @@ import type { Location } from "@/types";
 import type { PointTuple } from "leaflet";
 import { Route, BrowserRouter as Router, Routes } from "react-router";
 
+const basename = (import.meta.env.VITE_BASE_URL || "/") as string;
+
 export const KOLOMNA_COORDS: PointTuple = [55.095276, 38.765574];
 export const MOSCOW_COORDS: PointTuple = [55.7558, 37.6176];
 
@@ -36,7 +38,7 @@ function App() {
   const { currentLocation, routePoints, isTracking } = mockData;
 
   return (
-    <Router basename="/pedal/">
+    <Router basename={basename}>
       <Routes>
         <Route
           path="/"

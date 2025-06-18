@@ -42,17 +42,25 @@ jobs:
         with:
           node-version: lts/*
           cache: "pnpm"
+
       - name: Install dependencies
         run: pnpm install
+
       - name: Build
         run: pnpm run build
+        env:
+          # VITE_BASE_URL: '/YOUR_REPO_NAME/'
+          VITE_BASE_URL: "/${{ github.event.repository.name }}/"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload dist folder
           path: "./dist"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
