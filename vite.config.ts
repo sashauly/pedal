@@ -49,7 +49,6 @@ export default defineConfig({
         orientation: "portrait",
         display_override: ["window-controls-overlay", "standalone", "browser"],
         lang: "ru",
-        start_url: "/",
         icons: [
           {
             src: "pwa-64x64.png",
