@@ -20,9 +20,8 @@ import type { Location } from "@/types";
 import { cn } from "@/lib/utils";
 import { MapControls } from "./MapControls";
 import { toast } from "sonner";
-import { MOSCOW_COORDS } from "@/App";
 
-const DEFAULT_CENTER: PointTuple = MOSCOW_COORDS;
+const DEFAULT_CENTER: PointTuple = [55.751244, 37.618423]; // Moscow, Russia
 const DEFAULT_ZOOM = 13;
 const CENTER_ZOOM = 16;
 
@@ -30,25 +29,23 @@ interface MapViewProps {
   currentLocation: Location | null;
   routePoints: Location[];
   isTracking: boolean;
+  onMapClick: (location: Location) => void;
   className?: string;
 }
 
 function MapEventHandler({
   onMapClick,
 }: {
-  onMapClick?: (location: Location) => void;
-  currentLocation: Location | null;
+  onMapClick: (location: Location) => void;
 }) {
   useMapEvents({
     click: (e) => {
-      if (onMapClick) {
-        const location: Location = {
-          lat: e.latlng.lat,
-          lng: e.latlng.lng,
-          timestamp: Date.now(),
-        };
-        onMapClick(location);
-      }
+      const location: Location = {
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+        timestamp: Date.now(),
+      };
+      onMapClick(location);
     },
   });
 
@@ -79,6 +76,7 @@ export function MapView({
   currentLocation,
   routePoints,
   isTracking,
+  onMapClick,
   className,
 }: MapViewProps) {
   const [mapRef, setMapRef] = useState<LeafletMap | null>(null);
@@ -111,10 +109,6 @@ export function MapView({
     }
   }, [shouldCenter]);
 
-  const handleMapClick = (location: Location) => {
-    console.log("Map clicked:", location);
-  };
-
   const handleUserCenter = useCallback(() => {
     if (!currentLocation) {
       toast.error("Error", {
@@ -137,6 +131,7 @@ export function MapView({
     point.lng,
   ]);
 
+  // TODO change the icon
   // Create current location icon
   const currentLocationIcon = new Icon({
     iconUrl:
@@ -191,11 +186,23 @@ export function MapView({
           />
         )}
 
+        {routePoints.length === 2 && routePoints[1] && (
+          <Marker
+            position={[routePoints[1].lat, routePoints[1].lng]}
+            icon={
+              // TODO change the icon
+              new Icon({
+                iconUrl:
+                  "https://cdn-icons-png.flaticon.com/512/684/684908.png", // Placeholder pin icon
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+              })
+            }
+          />
+        )}
+
         {/* Map event handlers */}
-        <MapEventHandler
-          onMapClick={handleMapClick}
-          currentLocation={currentLocation}
-        />
+        <MapEventHandler onMapClick={onMapClick} />
 
         {shouldCenter && <MapCenter center={mapCenter} zoom={CENTER_ZOOM} />}
       </MapContainer>

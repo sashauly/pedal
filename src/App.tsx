@@ -1,60 +1,67 @@
 import { Toaster, toast } from "sonner";
 import { MapView } from "@/components/MapView";
 import type { Location } from "@/types";
-import type { PointTuple } from "leaflet";
 import { Route, BrowserRouter as Router, Routes } from "react-router";
 import useGeolocation from "./hooks/useGeolocation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import RouteInput from "./components/RouteInput";
 
 const basename = (import.meta.env.VITE_BASE_URL || "/") as string;
 
-export const MOSCOW_COORDS: PointTuple = [55.7558, 37.6176];
+interface CoordDisplay {
+  lat: string;
+  lng: string; 
+}
 
 export default function App() {
-  const {
-    currentLocation,
-    error,
-    isLoading,
-    isTracking,
-    startTracking,
-    stopTracking,
-  } = useGeolocation();
+  const { currentLocation, error, isTracking, isLoading } = useGeolocation();
 
-  const [routePoints, setRoutePoints] = useState<Location[]>([]);
+  const [destinationPoint, setDestinationPoint] = useState<Location | null>(
+    null
+  );
+
+  const activeRoute = useMemo(() => {
+    const route: Location[] = [];
+    if (currentLocation) {
+      route.push(currentLocation);
+    }
+    if (destinationPoint) {
+      route.push(destinationPoint);
+    }
+    return route;
+  }, [currentLocation, destinationPoint]);
+
+  const handleMapClick = (location: Location) => {
+    setDestinationPoint(location);
+    // TODO remove toast
+    toast.success("Destination Set", {
+      description: `Lat: ${location.lat.toFixed(
+        4
+      )}, Lng: ${location.lng.toFixed(4)}`,
+    });
+  };
+
+  const startCoords: CoordDisplay = useMemo(
+    () => ({
+      lat: currentLocation ? currentLocation.lat.toFixed(6) : "N/A",
+      lng: currentLocation ? currentLocation.lng.toFixed(6) : "N/A",
+    }),
+    [currentLocation]
+  );
+
+  const endCoords: CoordDisplay = useMemo(
+    () => ({
+      lat: destinationPoint ? destinationPoint.lat.toFixed(6) : "Click Map",
+      lng: destinationPoint ? destinationPoint.lng.toFixed(6) : "to set End",
+    }),
+    [destinationPoint]
+  );
 
   useEffect(() => {
     if (error) {
       toast.error("Geolocation Error", { description: error });
     }
   }, [error]);
-
-  useEffect(() => {
-    if (currentLocation) {
-      const startPoint: Location = currentLocation;
-
-      const endPoint: Location = {
-        lat: MOSCOW_COORDS[0],
-        lng: MOSCOW_COORDS[1],
-        timestamp: Date.now(),
-      };
-
-      setRoutePoints([startPoint, endPoint]);
-    }
-  }, [currentLocation]);
-
-  const handleToggleTracking = () => {
-    if (isTracking) {
-      stopTracking();
-      toast.info("Tracking Stopped", {
-        description: "Geolocation watch disabled.",
-      });
-    } else {
-      startTracking();
-      toast.success("Tracking Started", {
-        description: "Attempting to acquire location.",
-      });
-    }
-  };
 
   return (
     <Router basename={basename}>
@@ -65,23 +72,32 @@ export default function App() {
             <div className="relative w-full h-screen overflow-hidden">
               <MapView
                 currentLocation={currentLocation}
-                routePoints={routePoints}
+                routePoints={activeRoute}
                 isTracking={isTracking}
                 className="absolute inset-0"
+                onMapClick={handleMapClick}
               />
 
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000]">
-                <button
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                  onClick={handleToggleTracking}
-                  disabled={isLoading}
-                >
-                  {isLoading
-                    ? "Loading GPS..."
-                    : isTracking
-                    ? "Stop Tracking"
-                    : "Start Tracking"}
-                </button>
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white shadow-2xl z-[1000] border-t border-gray-200">
+                <h3 className="text-lg font-bold mb-3 text-gray-800">
+                  Route Planner
+                </h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <RouteInput
+                    title="Start (Your Location)"
+                    lat={startCoords.lat}
+                    lng={startCoords.lng}
+                    isLoading={isLoading && !currentLocation}
+                  />
+
+                  <RouteInput
+                    title="End (Clicked Destination)"
+                    lat={endCoords.lat}
+                    lng={endCoords.lng}
+                    isEnd={true}
+                  />
+                </div>
               </div>
             </div>
           }
