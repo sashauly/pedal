@@ -4,7 +4,7 @@ import type { Location } from "@/types";
 import { Route, BrowserRouter as Router, Routes } from "react-router";
 import useGeolocation from "./hooks/useGeolocation";
 import { useRoutePlanner } from "./hooks/useRoutePlanner";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import RouteInput from "./components/RouteInput";
 
 const basename = (import.meta.env.VITE_BASE_URL || "/") as string;
@@ -15,7 +15,8 @@ interface CoordDisplay {
 }
 
 export default function App() {
-  const { currentLocation, error, isLoading } = useGeolocation();
+  const { currentLocation, error, isLoading, permissionStatus } =
+    useGeolocation();
 
   const {
     destinationPoint,
@@ -23,8 +24,24 @@ export default function App() {
     isRouting,
     routeSummary,
     setDestinationPoint,
-    handleMapClick,
+    handleMapClick: hookHandleMapClick,
   } = useRoutePlanner(currentLocation);
+
+  const isPermissionDenied = permissionStatus === "denied";
+
+  const handleMapClick = useCallback(
+    (location: Location) => {
+      if (isPermissionDenied) {
+        toast.warning("Cannot Plan Route", {
+          description:
+            "Location access is denied. Please enable it to set a destination.",
+        });
+        return;
+      }
+      hookHandleMapClick(location);
+    },
+    [isPermissionDenied, hookHandleMapClick]
+  );
 
   const activeRoute = useMemo(() => {
     return routePolyline.map(
@@ -67,6 +84,23 @@ export default function App() {
                 className="absolute inset-0"
                 onMapClick={handleMapClick}
               />
+
+              {isPermissionDenied && (
+                <div className="absolute inset-0 z-[2500] bg-black/70 flex items-center justify-center p-8">
+                  <div className="bg-white p-6 rounded-lg shadow-2xl text-center">
+                    <h4 className="text-xl font-bold text-red-600 mb-2">
+                      Location Required
+                    </h4>
+                    <p className="text-gray-700">
+                      Please enable geolocation access in your browser or device
+                      settings to use the route planner.
+                    </p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      The map is currently disabled.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {isRouting && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[2000] p-4 bg-yellow-500/90 rounded-lg shadow-xl">
