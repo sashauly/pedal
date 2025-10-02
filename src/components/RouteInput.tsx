@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface RouteInputProps {
@@ -6,6 +7,7 @@ interface RouteInputProps {
   lng: string;
   isLoading?: boolean;
   isEnd?: boolean;
+  onClear?: () => void;
 }
 
 export default function RouteInput({
@@ -14,9 +16,10 @@ export default function RouteInput({
   lng,
   isLoading = false,
   isEnd = false,
+  onClear,
 }: RouteInputProps) {
   return (
-    <div className="flex flex-col p-3 border rounded-lg bg-gray-50">
+    <div className="flex flex-col p-3 border rounded-lg bg-gray-50 relative">
       <p className="text-xs font-semibold mb-2 text-gray-600">{title}</p>
 
       {isLoading ? (
@@ -39,8 +42,12 @@ export default function RouteInput({
           />
         </div>
       )}
+
+      {isEnd && lat !== "Click Map" && onClear && (
+        <Button onClick={onClear}>Clear</Button>
+      )}
       {isEnd && lat === "Click Map" && (
-        <p className="text-xs text-red-500 mt-1">
+        <p className="text-xs text-blue-500 mt-1">
           Click anywhere on the map to set the destination!
         </p>
       )}

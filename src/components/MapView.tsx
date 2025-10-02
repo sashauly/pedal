@@ -1,8 +1,6 @@
 // START: Preserve spaces to avoid auto-sorting
 import "leaflet/dist/leaflet.css";
-
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css";
-
 import "leaflet-defaulticon-compatibility";
 // END: Preserve spaces to avoid auto-sorting
 
@@ -28,7 +26,6 @@ const CENTER_ZOOM = 16;
 interface MapViewProps {
   currentLocation: Location | null;
   routePoints: Location[];
-  isTracking: boolean;
   onMapClick: (location: Location) => void;
   className?: string;
 }
@@ -75,7 +72,6 @@ function MapCenter({
 export function MapView({
   currentLocation,
   routePoints,
-  isTracking,
   onMapClick,
   className,
 }: MapViewProps) {
@@ -83,8 +79,6 @@ export function MapView({
   const [mapCenter, setMapCenter] = useState<PointTuple>(DEFAULT_CENTER);
   const [shouldCenter, setShouldCenter] = useState(false);
   const [hasInitialCentered, setHasInitialCentered] = useState(false);
-
-  console.log(isTracking);
 
   const handleMapReady = (map: LeafletMap) => {
     setMapRef(map);
@@ -147,6 +141,16 @@ export function MapView({
     popupAnchor: [0, -12],
   });
 
+  // Create Destination icon (Red Pin) TODO change the icon
+  const destinationIcon = new Icon({
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+  });
+
+  const destinationLocation =
+    routePoints.length > 0 ? routePoints[routePoints.length - 1] : null;
+
   return (
     <div className={cn("relative w-full h-full", className)}>
       <MapContainer
@@ -186,18 +190,11 @@ export function MapView({
           />
         )}
 
-        {routePoints.length === 2 && routePoints[1] && (
+        {/* Destination Marker */}
+        {destinationLocation && (
           <Marker
-            position={[routePoints[1].lat, routePoints[1].lng]}
-            icon={
-              // TODO change the icon
-              new Icon({
-                iconUrl:
-                  "https://cdn-icons-png.flaticon.com/512/684/684908.png", // Placeholder pin icon
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
-              })
-            }
+            position={[destinationLocation.lat, destinationLocation.lng]}
+            icon={destinationIcon}
           />
         )}
 
