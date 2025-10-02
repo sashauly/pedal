@@ -38,7 +38,7 @@ export function MapControls({
           size="icon"
           variant="outline"
           onClick={onCenterLocation}
-          disabled
+          title="Center on current location"
         >
           <Navigation className="h-4 w-4" />
         </Button>
@@ -48,7 +48,7 @@ export function MapControls({
             size="icon"
             variant="outline"
             onClick={handleZoomIn}
-            title="Приблизить"
+            title="Zoom In"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -56,7 +56,7 @@ export function MapControls({
             size="icon"
             variant="outline"
             onClick={handleZoomOut}
-            title="Отдалить"
+            title="Zoom Out"
           >
             <Minus className="h-4 w-4" />
           </Button>

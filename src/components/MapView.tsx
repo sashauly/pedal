@@ -6,7 +6,7 @@ import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility
 import "leaflet-defaulticon-compatibility";
 // END: Preserve spaces to avoid auto-sorting
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -18,9 +18,13 @@ import {
 import { Icon, Map as LeafletMap, type PointTuple } from "leaflet";
 import type { Location } from "@/types";
 import { cn } from "@/lib/utils";
-import { KOLOMNA_COORDS } from "@/App";
 import { MapControls } from "./MapControls";
 import { toast } from "sonner";
+import { MOSCOW_COORDS } from "@/App";
+
+const DEFAULT_CENTER: PointTuple = MOSCOW_COORDS;
+const DEFAULT_ZOOM = 13;
+const CENTER_ZOOM = 16;
 
 interface MapViewProps {
   currentLocation: Location | null;
@@ -29,18 +33,12 @@ interface MapViewProps {
   className?: string;
 }
 
-// Custom hook to handle map events
 function MapEventHandler({
   onMapClick,
-  onLocationCenter,
-  currentLocation,
 }: {
   onMapClick?: (location: Location) => void;
-  onLocationCenter?: () => void;
   currentLocation: Location | null;
 }) {
-  const map = useMap();
-
   useMapEvents({
     click: (e) => {
       if (onMapClick) {
@@ -54,17 +52,9 @@ function MapEventHandler({
     },
   });
 
-  // Center map on current location when requested
-  useEffect(() => {
-    if (currentLocation && onLocationCenter) {
-      map.setView([currentLocation.lat, currentLocation.lng], 16);
-    }
-  }, [map, currentLocation, onLocationCenter]);
-
   return null;
 }
 
-// Component to update map center
 function MapCenter({
   center,
   zoom,
@@ -76,7 +66,9 @@ function MapCenter({
 
   useEffect(() => {
     if (center) {
-      map.setView(center, zoom || map.getZoom());
+      map.flyTo(center, zoom || map.getZoom(), {
+        duration: 1.5,
+      });
     }
   }, [map, center, zoom]);
 
@@ -90,55 +82,54 @@ export function MapView({
   className,
 }: MapViewProps) {
   const [mapRef, setMapRef] = useState<LeafletMap | null>(null);
-  const mapContainerRef = useRef<LeafletMap | null>(null);
-  const [mapCenter, setMapCenter] = useState<PointTuple>(KOLOMNA_COORDS);
+  const [mapCenter, setMapCenter] = useState<PointTuple>(DEFAULT_CENTER);
   const [shouldCenter, setShouldCenter] = useState(false);
+  const [hasInitialCentered, setHasInitialCentered] = useState(false);
 
   console.log(isTracking);
 
   const handleMapReady = (map: LeafletMap) => {
     setMapRef(map);
-    mapContainerRef.current = map;
   };
 
-  // Update map center when current location changes
   useEffect(() => {
     if (currentLocation) {
-      setMapCenter([currentLocation.lat, currentLocation.lng]);
+      const newCenter: PointTuple = [currentLocation.lat, currentLocation.lng];
+      setMapCenter(newCenter);
+
+      if (!hasInitialCentered) {
+        setShouldCenter(true);
+        setHasInitialCentered(true);
+      }
     }
-  }, [currentLocation]);
+  }, [currentLocation, hasInitialCentered]);
+
+  useEffect(() => {
+    if (shouldCenter) {
+      const timer = setTimeout(() => setShouldCenter(false), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldCenter]);
 
   const handleMapClick = (location: Location) => {
-    // Handle tap-and-hold for setting destinations
     console.log("Map clicked:", location);
   };
 
-  const handleCenterLocation =
-    // async
-    useCallback(() => {
-      try {
-        if (!currentLocation) {
-          // await getCurrentPosition();
-        }
-        toast.success("Местоположение", {
-          description: "Карта центрирована на вашем местоположении",
-        });
-      } catch {
-        toast.error("Ошибка", {
-          description: "Не удалось определить местоположение",
-        });
-      }
-    }, [currentLocation]);
-
-  // Handle location centering
-  const handleLocationCenter = useCallback(() => {
-    if (currentLocation) {
-      setMapCenter([currentLocation.lat, currentLocation.lng]);
-      setShouldCenter(true);
-      setTimeout(() => setShouldCenter(false), 100);
+  const handleUserCenter = useCallback(() => {
+    if (!currentLocation) {
+      toast.error("Error", {
+        description:
+          "Current location not available. Please ensure location services are enabled.",
+      });
+      return;
     }
-    handleCenterLocation?.();
-  }, [currentLocation, handleCenterLocation]);
+
+    setShouldCenter(true);
+
+    toast.success("Current Location", {
+      description: "Map centered on your current location.",
+    });
+  }, [currentLocation]);
 
   // Create polyline points from route
   const polylinePoints: [number, number][] = routePoints.map((point) => [
@@ -165,7 +156,7 @@ export function MapView({
     <div className={cn("relative w-full h-full", className)}>
       <MapContainer
         center={mapCenter}
-        zoom={13}
+        zoom={DEFAULT_ZOOM}
         className="w-full h-full z-0"
         zoomControl={false}
         ref={handleMapReady}
@@ -203,19 +194,17 @@ export function MapView({
         {/* Map event handlers */}
         <MapEventHandler
           onMapClick={handleMapClick}
-          onLocationCenter={handleLocationCenter}
           currentLocation={currentLocation}
         />
 
-        {/* Center map when needed */}
-        {shouldCenter && <MapCenter center={mapCenter} zoom={16} />}
+        {shouldCenter && <MapCenter center={mapCenter} zoom={CENTER_ZOOM} />}
       </MapContainer>
 
       {/* Map Controls */}
       {mapRef && (
         <MapControls
           map={mapRef}
-          onCenterLocation={handleCenterLocation}
+          onCenterLocation={handleUserCenter}
           // onDownloadRegion={() => setShowRegionDownload(true)}
           // onSettings={() => setShowSettings(true)}
         />
