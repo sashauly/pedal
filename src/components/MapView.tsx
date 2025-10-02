@@ -1,10 +1,12 @@
+// src/components/MapView.tsx
+
 // START: Preserve spaces to avoid auto-sorting
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.webpack.css";
 import "leaflet-defaulticon-compatibility";
 // END: Preserve spaces to avoid auto-sorting
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -13,7 +15,13 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { Icon, Map as LeafletMap, type PointTuple } from "leaflet";
+import {
+  Icon,
+  Map as LeafletMap,
+  type PointTuple,
+  latLngBounds,
+  type LatLngExpression,
+} from "leaflet";
 import type { Location } from "@/types";
 import { cn } from "@/lib/utils";
 import { MapControls } from "./MapControls";
@@ -23,11 +31,60 @@ const DEFAULT_CENTER: PointTuple = [55.751244, 37.618423]; // Moscow, Russia
 const DEFAULT_ZOOM = 13;
 const CENTER_ZOOM = 16;
 
+// --- CUSTOM ICONS ---
+
+// 1. Current Location (Blue Dot) Icon - Using DivIcon for smoother pulse/look
+const currentLocationIcon = new Icon({
+  iconUrl:
+    "data:image/svg+xml;base64," +
+    btoa(`
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="8" fill="#3B82F6" stroke="#ffffff" stroke-width="3"/>
+      <circle cx="12" cy="12" r="3" fill="#ffffff"/>
+    </svg>
+  `),
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+// 2. Start Point (Bicycle Icon)
+const startPointIcon = new Icon({
+  // Use a simple bicycle SVG (Ensure public/bicycle-start.svg exists or use an inline SVG)
+  // For this example, we'll use an inline simplified bicycle for robustness:
+  iconUrl:
+    "data:image/svg+xml;base64," +
+    btoa(`
+   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bike-icon lucide-bike"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+  `),
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+  popupAnchor: [0, -32],
+});
+
+// 3. Destination Point (Red Pin - Simple marker)
+const destinationIcon = new Icon({
+  iconUrl:
+    "data:image/svg+xml;base64," +
+    btoa(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#EF4444" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </svg>
+  `),
+  iconSize: [32, 32],
+  iconAnchor: [16, 32],
+});
+
+// --- COMPONENT PROPS ---
+
 interface MapViewProps {
   currentLocation: Location | null;
   routePoints: Location[];
   onMapClick: (location: Location) => void;
   className?: string;
+  startPoint: Location | null;
+  destinationPoint: Location | null;
+  isSettingStartPoint: boolean;
 }
 
 function MapEventHandler({
@@ -74,7 +131,15 @@ export function MapView({
   routePoints,
   onMapClick,
   className,
+  startPoint,
+  destinationPoint,
+  isSettingStartPoint,
 }: MapViewProps) {
+  console.log(
+    isSettingStartPoint
+      ? "Map Click Mode: Setting Start Point"
+      : "Map Click Mode: Setting Destination Point"
+  );
   const [mapRef, setMapRef] = useState<LeafletMap | null>(null);
   const [mapCenter, setMapCenter] = useState<PointTuple>(DEFAULT_CENTER);
   const [shouldCenter, setShouldCenter] = useState(false);
@@ -119,37 +184,28 @@ export function MapView({
     });
   }, [currentLocation]);
 
-  // Create polyline points from route
-  const polylinePoints: [number, number][] = routePoints.map((point) => [
-    point.lat,
-    point.lng,
-  ]);
+  useEffect(() => {
+    if (!mapRef) return;
 
-  // TODO change the icon
-  // Create current location icon
-  const currentLocationIcon = new Icon({
-    iconUrl:
-      "data:image/svg+xml;base64," +
-      btoa(`
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="8" fill="#3B82F6" stroke="#ffffff" stroke-width="3"/>
-        <circle cx="12" cy="12" r="3" fill="#ffffff"/>
-      </svg>
-    `),
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12],
-  });
+    if (routePoints.length > 1) {
+      const latLngs = routePoints.map(
+        (p) => [p.lat, p.lng] as LatLngExpression
+      );
+      const bounds = latLngBounds(latLngs);
+      mapRef.fitBounds(bounds, { padding: [50, 50] });
+    } else if (startPoint && destinationPoint) {
+      const bounds = latLngBounds([
+        [startPoint.lat, startPoint.lng],
+        [destinationPoint.lat, destinationPoint.lng],
+      ]);
+      mapRef.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [routePoints, startPoint, destinationPoint, mapRef]);
 
-  // Create Destination icon (Red Pin) TODO change the icon
-  const destinationIcon = new Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-  });
-
-  const destinationLocation =
-    routePoints.length > 0 ? routePoints[routePoints.length - 1] : null;
+  const polylinePoints: [number, number][] = useMemo(
+    () => routePoints.map((point) => [point.lat, point.lng]),
+    [routePoints]
+  );
 
   return (
     <div className={cn("relative w-full h-full", className)}>
@@ -179,6 +235,13 @@ export function MapView({
           />
         )}
 
+        {startPoint && (
+          <Marker
+            position={[startPoint.lat, startPoint.lng]}
+            icon={startPointIcon}
+          />
+        )}
+
         {/* Route polyline */}
         {polylinePoints.length > 1 && (
           <Polyline
@@ -191,9 +254,9 @@ export function MapView({
         )}
 
         {/* Destination Marker */}
-        {destinationLocation && (
+        {destinationPoint && (
           <Marker
-            position={[destinationLocation.lat, destinationLocation.lng]}
+            position={[destinationPoint.lat, destinationPoint.lng]}
             icon={destinationIcon}
           />
         )}

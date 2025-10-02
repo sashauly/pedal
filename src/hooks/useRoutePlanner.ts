@@ -1,33 +1,40 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import type { Location } from "@/types";
 
 // Define the OSRM base URL for the cycling profile
 const OSRM_URL = "https://router.project-osrm.org/route/v1/cycling/";
 
-// 1. OSRM API Response Interface
 interface OSRMRouteResponse {
   code: string;
   routes: Array<{
-    distance: number; // in meters
-    duration: number; // in seconds
+    distance: number;
+    duration: number;
     geometry: {
-      coordinates: [number, number][]; // [lng, lat] pairs
+      coordinates: [number, number][];
     };
   }>;
 }
 
-// 2. Hook Output Interface
+type StartSource = "gps" | "custom" | "none";
+
 interface RoutePlannerState {
   destinationPoint: Location | null;
   routePolyline: [number, number][];
   isRouting: boolean;
   routeSummary: { distance: string; duration: string } | null;
+  startPoint: Location | null;
+  startSource: StartSource;
+  isRouteLocked: boolean;
+  isSettingStartPoint: boolean;
   setDestinationPoint: (location: Location | null) => void;
   handleMapClick: (location: Location) => void;
+  lockRoute: () => void;
+  clearAllPoints: () => void;
+  setGpsStartPoint: () => void;
+  enterStartPointSelectionMode: () => void;
 }
 
-// 3. The Hook
 export function useRoutePlanner(
   currentLocation: Location | null
 ): RoutePlannerState {
@@ -41,7 +48,26 @@ export function useRoutePlanner(
     duration: string;
   } | null>(null);
 
-  // --- ASYNC FUNCTION: Fetches the route from OSRM (memoized) ---
+  const [startSource, setStartSource] = useState<StartSource>("none");
+  const [customStartPoint, setCustomStartPoint] = useState<Location | null>(
+    null
+  );
+  const [isRouteLocked, setIsRouteLocked] = useState(false);
+  const [isSettingStartPoint, setIsSettingStartPoint] = useState(false);
+
+  const startPoint = useMemo(() => {
+    if (isRouteLocked && startSource === "custom") {
+      return customStartPoint;
+    }
+    if (isRouteLocked && startSource === "gps") {
+      return customStartPoint || currentLocation;
+    }
+    if (startSource === "custom") {
+      return customStartPoint;
+    }
+    return currentLocation;
+  }, [startSource, customStartPoint, currentLocation, isRouteLocked]);
+
   const fetchRoute = useCallback(async (start: Location, end: Location) => {
     setIsRouting(true);
     setRoutePolyline([]);
@@ -58,14 +84,12 @@ export function useRoutePlanner(
         const routeData = data.routes[0];
         const geojsonCoordinates = routeData.geometry.coordinates;
 
-        // OSRM returns [lng, lat], Leaflet needs [lat, lng]
         const leafletPolyline: [number, number][] = geojsonCoordinates.map(
           (coord: [number, number]) => [coord[1], coord[0]]
         );
 
         setRoutePolyline(leafletPolyline);
 
-        // Update summary
         const distanceKm = (routeData.distance / 1000).toFixed(2);
         const durationMin = Math.round(routeData.duration / 60);
 
@@ -91,24 +115,92 @@ export function useRoutePlanner(
     }
   }, []);
 
-  // --- EFFECT: Trigger the API call when start or end points change ---
   useEffect(() => {
-    if (currentLocation && destinationPoint) {
-      // Use void to mark the promise as intentionally unawaited (ESLint rule)
-      void fetchRoute(currentLocation, destinationPoint);
+    if (currentLocation && startSource === "none") {
+      setStartSource("gps");
+    }
+  }, [currentLocation, startSource]);
+
+  useEffect(() => {
+    if (startPoint && destinationPoint) {
+      void fetchRoute(startPoint, destinationPoint);
     } else {
       setRoutePolyline([]);
       setRouteSummary(null);
     }
-  }, [currentLocation, destinationPoint, fetchRoute]);
+  }, [startPoint, destinationPoint, fetchRoute]);
 
-  // --- Public Handler for Map Clicks ---
-  const handleMapClick = useCallback((location: Location) => {
-    setDestinationPoint(location);
-    toast.success("Destination Set", {
-      description: `Calculating route to Lat: ${location.lat.toFixed(
-        4
-      )}, Lng: ${location.lng.toFixed(4)}`,
+  const lockRoute = useCallback(() => {
+    if (startPoint && destinationPoint) {
+      if (startSource === "gps" && currentLocation) {
+        setCustomStartPoint(currentLocation);
+      }
+      setIsRouteLocked(true);
+      toast.info("Route Locked", {
+        description: "Starting point is fixed for the duration of the ride.",
+      });
+    } else {
+      toast.warning("Cannot Lock", {
+        description: "Set a destination before locking the route.",
+      });
+    }
+  }, [startPoint, destinationPoint, startSource, currentLocation]);
+
+  const handleMapClick = useCallback(
+    (location: Location) => {
+      if (isSettingStartPoint) {
+        setCustomStartPoint(location);
+        setStartSource("custom");
+        setIsSettingStartPoint(false);
+        setIsRouteLocked(false);
+        toast.success("Start Point Set", {
+          description: "Route will begin from this clicked location.",
+        });
+        return;
+      }
+
+      setIsRouteLocked(false);
+      setDestinationPoint(location);
+      toast.success("Destination Set", {
+        description: `Route start point is now defined by the selected source.`,
+      });
+    },
+    [isSettingStartPoint]
+  );
+
+  const enterStartPointSelectionMode = useCallback(() => {
+    setIsSettingStartPoint(true);
+    toast.info("Selecting Start Point", {
+      description: "Click anywhere on the map to set the starting location.",
+    });
+  }, []);
+
+  const setGpsStartPoint = useCallback(() => {
+    setStartSource("gps");
+    setCustomStartPoint(null);
+    setIsSettingStartPoint(false);
+    setIsRouteLocked(false);
+    toast.info("Start Source Changed", {
+      description: "Route start point is following your current GPS location.",
+    });
+  }, []);
+
+  const setDestinationPointAndUnlock = useCallback(
+    (location: Location | null) => {
+      setDestinationPoint(location);
+      setIsRouteLocked(false);
+    },
+    []
+  );
+
+  const clearAllPoints = useCallback(() => {
+    setDestinationPoint(null);
+    setCustomStartPoint(null);
+    setStartSource("gps");
+    setIsRouteLocked(false);
+    setIsSettingStartPoint(false);
+    toast.info("Cleared", {
+      description: "All planning points have been reset.",
     });
   }, []);
 
@@ -117,7 +209,15 @@ export function useRoutePlanner(
     routePolyline,
     isRouting,
     routeSummary,
-    setDestinationPoint, // Expose the setter for the "Clear" button
-    handleMapClick, // Expose the click handler for MapView
+    setDestinationPoint: setDestinationPointAndUnlock,
+    handleMapClick,
+    lockRoute,
+    clearAllPoints,
+    setGpsStartPoint,
+    enterStartPointSelectionMode,
+    startPoint,
+    startSource,
+    isRouteLocked,
+    isSettingStartPoint,
   };
 }

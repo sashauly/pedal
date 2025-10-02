@@ -32,6 +32,14 @@ export default function App() {
     routeSummary,
     setDestinationPoint,
     handleMapClick: hookHandleMapClick,
+    startPoint,
+    isRouteLocked,
+    lockRoute,
+    startSource,
+    isSettingStartPoint,
+    setGpsStartPoint,
+    enterStartPointSelectionMode,
+    clearAllPoints,
   } = useRoutePlanner(throttledLocation);
 
   const isPermissionDenied = permissionStatus === "denied";
@@ -58,10 +66,10 @@ export default function App() {
 
   const startCoords: CoordDisplay = useMemo(
     () => ({
-      lat: rawLocation ? rawLocation.lat.toFixed(6) : "N/A",
-      lng: rawLocation ? rawLocation.lng.toFixed(6) : "N/A",
+      lat: startPoint ? startPoint.lat.toFixed(6) : "N/A",
+      lng: startPoint ? startPoint.lng.toFixed(6) : "N/A",
     }),
-    [rawLocation]
+    [startPoint]
   );
 
   const endCoords: CoordDisplay = useMemo(
@@ -86,10 +94,13 @@ export default function App() {
           element={
             <div className="relative w-full h-screen overflow-hidden">
               <MapView
-                currentLocation={throttledLocation}
+                currentLocation={rawLocation}
                 routePoints={activeRoute}
                 className="absolute inset-0"
                 onMapClick={handleMapClick}
+                startPoint={startPoint}
+                destinationPoint={destinationPoint}
+                isSettingStartPoint={isSettingStartPoint}
               />
 
               {isPermissionDenied && (
@@ -99,8 +110,8 @@ export default function App() {
                       Location Required
                     </h4>
                     <p className="text-gray-700">
-                      Please enable geolocation access in your browser or device
-                      settings to use the route planner.
+                      Please enable geolocation access in your device settings
+                      to plan a route.
                     </p>
                     <p className="text-sm text-gray-500 mt-2">
                       The map is currently disabled.
@@ -118,8 +129,14 @@ export default function App() {
               )}
 
               <div className="absolute bottom-0 left-0 right-0 p-4 bg-white shadow-2xl z-[1000] border-t border-gray-200">
-                <h3 className="text-lg font-bold mb-3 text-gray-800">
+                <h3 className="text-lg font-bold mb-3 text-gray-800 flex justify-between items-center">
                   Route Planner
+                  <button
+                    onClick={clearAllPoints}
+                    className="text-sm text-red-500 hover:text-red-700 font-semibold"
+                  >
+                    Clear All
+                  </button>
                 </h3>
 
                 {routeSummary && (
@@ -130,17 +147,58 @@ export default function App() {
                     <p className="text-sm font-semibold text-blue-800">
                       Time: {routeSummary.duration}
                     </p>
+
+                    <button
+                      onClick={lockRoute}
+                      disabled={isRouteLocked}
+                      className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                        isRouteLocked
+                          ? "bg-green-500 text-white cursor-default"
+                          : "bg-blue-500 text-white hover:bg-blue-600"
+                      }`}
+                    >
+                      {isRouteLocked ? "Route Locked" : "Lock Route"}
+                    </button>
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
-                  <RouteInput
-                    title="Start (Your Location)"
-                    lat={startCoords.lat}
-                    lng={startCoords.lng}
-                    isLoading={isLoading && !throttledLocation}
-                  />
-
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={setGpsStartPoint}
+                        disabled={startSource === "gps"}
+                        className={`w-full p-2 rounded-lg text-sm font-semibold transition-colors ${
+                          startSource === "gps"
+                            ? "bg-blue-100 text-blue-800 border border-blue-300"
+                            : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                        }`}
+                      >
+                        Use GPS (Current)
+                      </button>
+                      <button
+                        onClick={enterStartPointSelectionMode}
+                        disabled={isSettingStartPoint}
+                        className={`w-full p-2 rounded-lg text-sm font-semibold transition-colors ${
+                          isSettingStartPoint
+                            ? "bg-yellow-100 text-yellow-800 animate-pulse border border-yellow-300"
+                            : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                        }`}
+                      >
+                        {isSettingStartPoint
+                          ? "Click Map..."
+                          : "Set by Map Click"}
+                      </button>
+                    </div>
+                    <RouteInput
+                      title={`Start (${
+                        startSource === "custom" ? "Custom" : "GPS"
+                      } ${isRouteLocked ? "FIXED" : "Active"})`}
+                      lat={startCoords.lat}
+                      lng={startCoords.lng}
+                      isLoading={isLoading && startSource === "gps"}
+                    />
+                  </div>
                   <RouteInput
                     title="End (Clicked Destination)"
                     lat={endCoords.lat}
