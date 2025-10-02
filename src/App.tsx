@@ -4,6 +4,7 @@ import type { Location } from "@/types";
 import { Route, BrowserRouter as Router, Routes } from "react-router";
 import useGeolocation from "./hooks/useGeolocation";
 import { useRoutePlanner } from "./hooks/useRoutePlanner";
+import { useThrottledLocation } from "./hooks/useThrottledLocation";
 import { useEffect, useMemo, useCallback } from "react";
 import RouteInput from "./components/RouteInput";
 
@@ -15,8 +16,14 @@ interface CoordDisplay {
 }
 
 export default function App() {
-  const { currentLocation, error, isLoading, permissionStatus } =
-    useGeolocation();
+  const {
+    currentLocation: rawLocation,
+    error,
+    isLoading,
+    permissionStatus,
+  } = useGeolocation();
+
+  const throttledLocation = useThrottledLocation(rawLocation, 3000);
 
   const {
     destinationPoint,
@@ -25,7 +32,7 @@ export default function App() {
     routeSummary,
     setDestinationPoint,
     handleMapClick: hookHandleMapClick,
-  } = useRoutePlanner(currentLocation);
+  } = useRoutePlanner(throttledLocation);
 
   const isPermissionDenied = permissionStatus === "denied";
 
@@ -51,10 +58,10 @@ export default function App() {
 
   const startCoords: CoordDisplay = useMemo(
     () => ({
-      lat: currentLocation ? currentLocation.lat.toFixed(6) : "N/A",
-      lng: currentLocation ? currentLocation.lng.toFixed(6) : "N/A",
+      lat: rawLocation ? rawLocation.lat.toFixed(6) : "N/A",
+      lng: rawLocation ? rawLocation.lng.toFixed(6) : "N/A",
     }),
-    [currentLocation]
+    [rawLocation]
   );
 
   const endCoords: CoordDisplay = useMemo(
@@ -79,7 +86,7 @@ export default function App() {
           element={
             <div className="relative w-full h-screen overflow-hidden">
               <MapView
-                currentLocation={currentLocation}
+                currentLocation={throttledLocation}
                 routePoints={activeRoute}
                 className="absolute inset-0"
                 onMapClick={handleMapClick}
@@ -131,7 +138,7 @@ export default function App() {
                     title="Start (Your Location)"
                     lat={startCoords.lat}
                     lng={startCoords.lng}
-                    isLoading={isLoading && !currentLocation}
+                    isLoading={isLoading && !throttledLocation}
                   />
 
                   <RouteInput
