@@ -37,6 +37,17 @@ export default defineConfig(({ mode }) => {
                 // }
               },
             },
+            {
+              urlPattern: /^https:\/\/router\.project-osrm\.org\/route\/.*/i,
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "osrm-routes",
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+              },
+            },
           ],
         },
         devOptions: {
